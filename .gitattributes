@@ -1,0 +1,6 @@
+# Force LF line endings for Xcode project files (CRLF breaks xcodebuild on macOS)
+*.pbxproj text eol=lf
+*.plist text eol=lf
+*.xcscheme text eol=lf
+*.xcworkspacedata text eol=lf
+*.storyboard text eol=lf

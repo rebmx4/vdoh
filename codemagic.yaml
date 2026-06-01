@@ -1,0 +1,65 @@
+workflows:
+  ios-app-store:
+    name: Proman iOS TestFlight
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: ATMA
+    environment:
+      xcode: latest
+      groups:
+        - atma_signing
+      vars:
+        XCODE_SCHEME: "ATMA"
+        BUNDLE_ID: "ru.rynpro.nlp"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: main
+          include: true
+    scripts:
+      - name: Install XcodeGen
+        script: HOMEBREW_NO_AUTO_UPDATE=1 brew install xcodegen
+      - name: Generate Xcode project
+        script: |
+          cd "$CM_BUILD_DIR"
+          xcodegen generate
+      - name: Initialize keychain
+        script: keychain initialize
+      - name: Fetch or create signing files (reuse stable cert)
+        script: |
+          echo "$CERT_KEY_B64" | base64 -d > /tmp/priv.pem
+          export CERTIFICATE_PRIVATE_KEY=$(cat /tmp/priv.pem)
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Install certificates into keychain
+        script: |
+          echo "$CERT_KEY_B64" | base64 -d > /tmp/priv.pem
+          export CERTIFICATE_PRIVATE_KEY=$(cat /tmp/priv.pem)
+          keychain add-certificates
+      - name: Apply provisioning profiles
+        script: xcode-project use-profiles
+      - name: Set build number
+        script: |
+          cd "$CM_BUILD_DIR"
+          agvtool new-version -all "$BUILD_NUMBER"
+      - name: Build IPA
+        script: |
+          xcode-project build-ipa \
+            --project "$CM_BUILD_DIR/Proman.xcodeproj" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - rerebmx@gmail.com
+        notify:
+          success: true
+          failure: true

@@ -1,0 +1,31 @@
+name: Proman
+
+options:
+  bundleIdPrefix: ru.rynpro
+  deploymentTarget:
+    iOS: "15.0"
+  developmentLanguage: ru
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_LANGUAGE: ru
+
+targets:
+  ATMA:
+    type: application
+    platform: iOS
+    sources:
+      - path: ATMA
+        excludes:
+          - "Entitlements/**"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ru.rynpro.nlp
+        PRODUCT_NAME: Proman
+        INFOPLIST_FILE: ATMA/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1"
