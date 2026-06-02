@@ -6,9 +6,6 @@ workflows:
     integrations:
       app_store_connect: vdoh
     environment:
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.ryndin.vdoh
       xcode: latest
       vars:
         XCODE_SCHEME: "ATMA"
