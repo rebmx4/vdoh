@@ -36,7 +36,9 @@ workflows:
             --certificate-key=@file:/tmp/cert_key.pem \
             --create \
             --verbose
-          keychain add-certificates --certificate-key=@file:/tmp/cert_key.pem
+          keychain add-certificates
+          echo "===== Certificates in keychain ====="
+          keychain list-certificates 2>/dev/null | grep -i "common_name\|iOS\|Distribution" | head -10 || true
           echo "===== Applying profiles to project ====="
           xcode-project use-profiles --verbose
       - name: Set build number
