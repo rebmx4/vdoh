@@ -4,11 +4,12 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     integrations:
-      app_store_connect: ATMA
+      app_store_connect: vdoh
     environment:
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.ryndin.vdoh
       xcode: latest
-      groups:
-        - atma_signing
       vars:
         XCODE_SCHEME: "ATMA"
         BUNDLE_ID: "com.ryndin.vdoh"
@@ -25,26 +26,19 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR"
           xcodegen generate
-      - name: Initialize keychain
-        script: keychain initialize
-      - name: Fetch or create signing files (reuse stable cert)
+      - name: Set up code signing (auto via ASC API key)
         script: |
-          echo "$CERT_KEY_B64" | base64 -d > /tmp/priv.pem
-          export CERTIFICATE_PRIVATE_KEY=$(cat /tmp/priv.pem)
+          keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create
-      - name: Install certificates into keychain
-        script: |
-          echo "$CERT_KEY_B64" | base64 -d > /tmp/priv.pem
-          export CERTIFICATE_PRIVATE_KEY=$(cat /tmp/priv.pem)
           keychain add-certificates
-      - name: Apply provisioning profiles
-        script: xcode-project use-profiles
+          xcode-project use-profiles
       - name: Set build number
         script: |
           cd "$CM_BUILD_DIR"
-          agvtool new-version -all "$BUILD_NUMBER"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
+          agvtool new-version -all $(($LATEST + 1))
       - name: Build IPA
         script: |
           xcode-project build-ipa \
