@@ -25,12 +25,13 @@ workflows:
           xcodegen generate
       - name: Set up code signing (auto via ASC API key)
         script: |
+          cd "$CM_BUILD_DIR"
           keychain initialize
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --create
           keychain add-certificates
-          xcode-project use-profiles
+          xcode-project use-profiles --project "$CM_BUILD_DIR/Proman.xcodeproj"
       - name: Set build number
         script: |
           cd "$CM_BUILD_DIR"
