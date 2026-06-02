@@ -6,6 +6,8 @@ workflows:
     integrations:
       app_store_connect: vdoh
     environment:
+      groups:
+        - vdoh_signing
       xcode: latest
       vars:
         XCODE_SCHEME: "ATMA"
