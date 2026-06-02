@@ -27,13 +27,14 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR"
           keychain initialize
+          # Distribution certificate needs a private key to be issued; generate one
+          openssl genrsa -out /tmp/cert_key.pem 2048
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key=@file:/tmp/cert_key.pem \
             --create \
             --verbose
-          keychain add-certificates
-          echo "===== Provisioning profiles on disk ====="
-          ls -la ~/Library/MobileDevice/Provisioning\ Profiles/ 2>/dev/null || echo "NO PROFILES DIR"
+          keychain add-certificates --certificate-key=@file:/tmp/cert_key.pem
           echo "===== Applying profiles to project ====="
           xcode-project use-profiles --verbose
       - name: Set build number
