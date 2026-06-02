@@ -46,9 +46,18 @@ workflows:
           agvtool new-version -all $(($LATEST + 1))
       - name: Build IPA
         script: |
+          cd "$CM_BUILD_DIR"
           xcode-project build-ipa \
-            --project "$CM_BUILD_DIR/Proman.xcodeproj" \
-            --scheme "$XCODE_SCHEME"
+            --project "Proman.xcodeproj" \
+            --scheme "$XCODE_SCHEME" || {
+              echo "===================================================="
+              echo "===== BUILD FAILED — error lines from xcodebuild ====="
+              echo "===================================================="
+              grep -h -A3 "error:" /tmp/xcodebuild_logs/*.log 2>/dev/null | tail -n 60
+              echo "===== last 40 lines of xcodebuild log ====="
+              tail -n 40 /tmp/xcodebuild_logs/*.log 2>/dev/null
+              exit 1
+            }
     artifacts:
       - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
