@@ -27,8 +27,8 @@ workflows:
         script: |
           cd "$CM_BUILD_DIR"
           keychain initialize
-          # Distribution certificate needs a private key to be issued; generate one
-          openssl genrsa -out /tmp/cert_key.pem 2048
+          # Stable certificate private key from env (base64) — must persist across builds
+          echo "$CERTIFICATE_PRIVATE_KEY" | openssl base64 -A -d -out /tmp/cert_key.pem
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
             --certificate-key=@file:/tmp/cert_key.pem \
