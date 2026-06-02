@@ -11,7 +11,7 @@ workflows:
         - atma_signing
       vars:
         XCODE_SCHEME: "ATMA"
-        BUNDLE_ID: "ru.rynpro.nlp"
+        BUNDLE_ID: "com.ryndin.vdoh"
     triggering:
       events:
         - push

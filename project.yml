@@ -1,7 +1,7 @@
 name: Proman
 
 options:
-  bundleIdPrefix: ru.rynpro
+  bundleIdPrefix: com.ryndin
   deploymentTarget:
     iOS: "15.0"
   developmentLanguage: ru
@@ -24,7 +24,7 @@ targets:
           - "Entitlements/**"
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: ru.rynpro.nlp
+        PRODUCT_BUNDLE_IDENTIFIER: com.ryndin.vdoh
         PRODUCT_NAME: Proman
         INFOPLIST_FILE: ATMA/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
