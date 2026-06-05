@@ -44,8 +44,10 @@ workflows:
       - name: Set build number
         script: |
           cd "$CM_BUILD_DIR"
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
-          agvtool new-version -all $(($LATEST + 1))
+          # Use a always-increasing unique build number (epoch seconds) so it never collides
+          BN=$(date +%s)
+          agvtool new-version -all "$BN"
+          echo "CFBundleVersion set to $BN"
       - name: Build IPA
         script: |
           cd "$CM_BUILD_DIR"
