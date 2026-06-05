@@ -52,6 +52,11 @@
 		<string>rynpro.ru</string>
 	</array>
 
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>audio</string>
+	</array>
+
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 

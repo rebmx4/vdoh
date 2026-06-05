@@ -22,11 +22,13 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
         loadRoot()
     }
 
-    // MARK: - Audio session (voice recording, incl. Bluetooth headsets)
+    // MARK: - Audio session (voice recording + loud playback, incl. Bluetooth)
     private func setupAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat,
+            // .default mode (not .voiceChat) avoids AGC ducking that made TTS quiet.
+            // .defaultToSpeaker routes to the loud speaker when no headset is connected.
+            try session.setCategory(.playAndRecord, mode: .default,
                 options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
             try session.setActive(true, options: [])
         } catch {
