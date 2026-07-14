@@ -3,7 +3,7 @@ import WebKit
 import SafariServices
 import AVFoundation
 
-class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler, AVAudioPlayerDelegate {
 
     private var webView: WKWebView!
     private var progressView: UIProgressView!
@@ -11,6 +11,11 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
     private let refreshControl = UIRefreshControl()
 
     private let bgColor = UIColor(red: 0.09, green: 0.094, blue: 0.106, alpha: 1) // #17181B
+
+    // Нативный TTS: голос гипнолога играем в Swift (.playback = громко + правильный маршрут)
+    private var ttsPlayer: AVAudioPlayer?
+    private var ttsCompletionId: String?
+    private let ttsBaseURL = "https://rynpro.ru/nlp"
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -83,6 +88,65 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
         }
     }
 
+    // MARK: - Native TTS (голос гипнолога — нативное воспроизведение, громко и с любым устройством)
+
+    func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "nativeTTS", let body = message.body as? [String: Any] else { return }
+        let action = body["action"] as? String ?? "play"
+        if action == "stop" {
+            ttsPlayer?.stop(); ttsPlayer = nil; ttsCompletionId = nil
+            return
+        }
+        guard let text = body["text"] as? String, let id = body["id"] as? String else { return }
+        let voice = body["voice"] as? String ?? "ermil"
+        playNativeTTS(text: text, voice: voice, id: id)
+    }
+
+    private func playNativeTTS(text: String, voice: String, id: String) {
+        guard let url = URL(string: ttsBaseURL + "/api/tts") else { notifyTTSDone(id); return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.timeoutInterval = 30
+        let payload: [String: Any] = ["text": text, "voice": voice, "emotion": "neutral", "speed": 1.0]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+        URLSession.shared.dataTask(with: req) { [weak self] data, _, err in
+            guard let self = self, let data = data, err == nil, data.count > 200 else {
+                DispatchQueue.main.async { self?.notifyTTSDone(id) }
+                return
+            }
+            DispatchQueue.main.async {
+                do {
+                    let session = AVAudioSession.sharedInstance()
+                    // .playback громко и сам маршрутизирует на динамик/наушники/Bluetooth/CarPlay
+                    try? session.setCategory(.playback, mode: .spokenAudio,
+                        options: [.allowBluetoothA2DP, .allowAirPlay])
+                    try? session.setActive(true, options: [])
+                    self.ttsPlayer?.stop()
+                    self.ttsPlayer = try AVAudioPlayer(data: data)
+                    self.ttsPlayer?.delegate = self
+                    self.ttsPlayer?.volume = 1.0
+                    self.ttsCompletionId = id
+                    if self.ttsPlayer?.play() != true { self.notifyTTSDone(id) }
+                } catch {
+                    print("Native TTS play error: \(error)")
+                    self.notifyTTSDone(id)
+                }
+            }
+        }.resume()
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        let id = ttsCompletionId; ttsCompletionId = nil
+        if let id = id { notifyTTSDone(id) }
+    }
+
+    private func notifyTTSDone(_ id: String) {
+        let esc = id.replacingOccurrences(of: "'", with: "")
+        webView?.evaluateJavaScript("window.__nativeTTSDone && window.__nativeTTSDone('\(esc)')",
+                                    completionHandler: nil)
+    }
+
     // MARK: - WebView
 
     private func setupWebView() {
@@ -94,6 +158,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false))
         config.userContentController = ucc
+        ucc.add(self, name: "nativeTTS")
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
         if #available(iOS 14.0, *) {
@@ -200,6 +265,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
         webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress))
         NotificationCenter.default.removeObserver(self)
         audioRouteTimer?.invalidate()
+        ttsPlayer?.stop()
     }
 
     // MARK: - WKNavigationDelegate
