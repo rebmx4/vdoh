@@ -23,16 +23,63 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
     }
 
     // MARK: - Audio session (voice recording + loud playback, incl. Bluetooth)
+    private var audioRouteTimer: Timer?
+    private let headphonePorts: Set<AVAudioSession.Port> = [
+        .headphones, .bluetoothA2DP, .bluetoothHFP, .bluetoothLE,
+        .airPlay, .carAudio, .usbAudio, .lineOut
+    ]
+
     private func setupAudioSession() {
         let session = AVAudioSession.sharedInstance()
         do {
             // .default mode (not .voiceChat) avoids AGC ducking that made TTS quiet.
-            // .defaultToSpeaker routes to the loud speaker when no headset is connected.
             try session.setCategory(.playAndRecord, mode: .default,
                 options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
             try session.setActive(true, options: [])
+            refreshAudioRoute()
         } catch {
             print("AudioSession setup error: \(error)")
+        }
+        // Наушники вкл/выкл на лету
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleRouteChange(_:)),
+            name: AVAudioSession.routeChangeNotification, object: nil)
+        // Возврат в приложение — WebKit мог перенастроить сессию
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(handleRouteChange(_:)),
+            name: UIApplication.didBecomeActiveNotification, object: nil)
+        // ГЛАВНАЯ СТРАХОВКА: WebKit при активном микрофоне сбрасывает вывод в тихий
+        // разговорный динамик без уведомления. Раз в 2 сек ловим это и возвращаем громкий.
+        audioRouteTimer?.invalidate()
+        audioRouteTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.tickAudioRoute()
+        }
+    }
+
+    // Полный пересчёт: снимаем форс (иначе наушники прячутся из маршрута), честно смотрим
+    // реальный выход, затем при отсутствии наушников возвращаем громкий динамик.
+    private func refreshAudioRoute() {
+        let session = AVAudioSession.sharedInstance()
+        try? session.overrideOutputAudioPort(.none)
+        let hasHeadphones = session.currentRoute.outputs.contains { headphonePorts.contains($0.portType) }
+        if !hasHeadphones {
+            try? session.overrideOutputAudioPort(.speaker)
+        }
+    }
+
+    // Лёгкая проверка по таймеру: если звук ушёл в тихий receiver — вернуть громкий динамик.
+    // (Наушники система в receiver не отправляет, поэтому им это не мешает.)
+    private func tickAudioRoute() {
+        let session = AVAudioSession.sharedInstance()
+        let onReceiver = session.currentRoute.outputs.contains { $0.portType == .builtInReceiver }
+        if onReceiver {
+            try? session.overrideOutputAudioPort(.speaker)
+        }
+    }
+
+    @objc private func handleRouteChange(_ note: Notification) {
+        DispatchQueue.main.async { [weak self] in
+            self?.refreshAudioRoute()
         }
     }
 
@@ -151,6 +198,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
 
     deinit {
         webView?.removeObserver(self, forKeyPath: #keyPath(WKWebView.estimatedProgress))
+        NotificationCenter.default.removeObserver(self)
+        audioRouteTimer?.invalidate()
     }
 
     // MARK: - WKNavigationDelegate
@@ -208,5 +257,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
                  initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
                  decisionHandler: @escaping (WKPermissionDecision) -> Void) {
         decisionHandler(.grant)
+        // «Тихий голос»: WebKit при старте микрофона переводит вывод в тихий разговорный
+        // динамик. Возвращаем громкий динамик сразу и ещё раз чуть позже (таймер добьёт).
+        refreshAudioRoute()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in self?.refreshAudioRoute() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.refreshAudioRoute() }
     }
 }
