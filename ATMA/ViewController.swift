@@ -24,6 +24,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
         setupWebView()
         setupProgress()
         setupOffline()
+        setupAudioDebug()
         loadRoot()
     }
 
@@ -80,11 +81,42 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
         if onReceiver {
             try? session.overrideOutputAudioPort(.speaker)
         }
+        updateAudioDebug()
     }
 
     @objc private func handleRouteChange(_ note: Notification) {
         DispatchQueue.main.async { [weak self] in
             self?.refreshAudioRoute()
+            self?.updateAudioDebug()
+        }
+    }
+
+    // ── Аудио-диагностика на экране (временно, чтобы найти причину тихого звука) ──
+    private var audioDebugLabel: UILabel?
+    private func setupAudioDebug() {
+        let l = UILabel()
+        l.font = .monospacedSystemFont(ofSize: 10, weight: .medium)
+        l.textColor = UIColor(white: 1, alpha: 0.6)
+        l.numberOfLines = 2
+        l.textAlignment = .center
+        l.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(l)
+        NSLayoutConstraint.activate([
+            l.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 8),
+            l.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -8),
+            l.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -1),
+        ])
+        audioDebugLabel = l
+        updateAudioDebug()
+    }
+    private func updateAudioDebug() {
+        let s = AVAudioSession.sharedInstance()
+        let out = s.currentRoute.outputs.map { $0.portType.rawValue.replacingOccurrences(of: "AVAudioSessionPort", with: "") }.joined(separator: ",")
+        let cat = s.category.rawValue.replacingOccurrences(of: "AVAudioSessionCategory", with: "")
+        let tts = (ttsPlayer?.isPlaying == true) ? "PLAY" : "idle"
+        let vol = String(format: "%.2f", s.outputVolume)
+        DispatchQueue.main.async {
+            self.audioDebugLabel?.text = "out:\(out) · cat:\(cat) · tts:\(tts) · vol:\(vol)"
         }
     }
 
@@ -122,6 +154,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
                     try? session.setCategory(.playback, mode: .spokenAudio,
                         options: [.allowBluetoothA2DP, .allowAirPlay])
                     try? session.setActive(true, options: [])
+                    // Форсируем громкий динамик, если нет наушников/Bluetooth
+                    let hp = session.currentRoute.outputs.contains { self.headphonePorts.contains($0.portType) }
+                    if !hp { try? session.overrideOutputAudioPort(.speaker) }
+                    self.updateAudioDebug()
                     self.ttsPlayer?.stop()
                     self.ttsPlayer = try AVAudioPlayer(data: data)
                     self.ttsPlayer?.delegate = self
